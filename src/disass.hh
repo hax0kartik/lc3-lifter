@@ -10,7 +10,7 @@ class Disassembler {
     std::vector<uint8_t> _buffer;
 
 public:
-    int run(std::string_view vw);
+    int run(std::string_view vw, IRContext& ctx);
 };
 
 } // End of namespace lc3

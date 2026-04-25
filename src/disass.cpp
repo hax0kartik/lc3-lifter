@@ -11,7 +11,7 @@ static std::vector<uint8_t> ReadObjectFile(std::string_view filename) {
     return buffer;
 }
 
-int Disassembler::run(std::string_view vw) {
+int Disassembler::run(std::string_view vw, IRContext& ctx) {
     _buffer = ReadObjectFile(vw);
     if (_buffer.empty()) {
         return -1;
@@ -28,7 +28,7 @@ int Disassembler::run(std::string_view vw) {
 
         auto f = INSMAP.find(opcode);
         if (f != INSMAP.end()) {
-            f->second(ins);
+            f->second(ins, ctx);
         } else {
             std::cout << std::hex << std::setfill('0') << std::setw(4) << (int)raw << std::endl;
         }

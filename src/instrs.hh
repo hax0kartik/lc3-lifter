@@ -1,6 +1,7 @@
 #pragma once
 #include <format>
 #include <unordered_map>
+#include "ir.hh"
 
 namespace lc3 {
 
@@ -8,17 +9,17 @@ struct Instruction {
     uint16_t raw;
 };
 
-using instruction_t = void(*)(Instruction&);
+using instruction_t = void(*)(Instruction&, IRContext&);
 
-static void add(Instruction& info) {
-
-}
-
-static void and_(Instruction& info) {
+static void add(Instruction& info, IRContext& ctx) {
 
 }
 
-static void jsr(Instruction& info) {
+static void and_(Instruction& info, IRContext& ctx) {
+
+}
+
+static void jsr(Instruction& info, IRContext& ctx) {
     if ((info.raw >> 11) & 1) {
         /* JSR */
         uint16_t PCOffset = info.raw & 0x7FF;
@@ -30,66 +31,66 @@ static void jsr(Instruction& info) {
     }
 }
 
-static void jmp(Instruction& info) {
+static void jmp(Instruction& info, IRContext& ctx) {
     
 }
 
-static void br(Instruction &info) {
+static void br(Instruction& info, IRContext& ctx) {
     uint8_t flag = (info.raw >> 9) & 0x7;
     uint8_t PCOffset = info.raw & 0x1FF;
 
     std::cout << std::format("BR{} 0x{:X}", flag, PCOffset) << std::endl;
 }
 
-static void ld(Instruction &info) {
+static void ld(Instruction& info, IRContext& ctx) {
     uint8_t DR = (info.raw >> 9) & 0x7;
     uint8_t PCOffset = info.raw & 0x1FF;
 
     std::cout << std::format("LD R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
-static void ldi(Instruction &info) {
+static void ldi(Instruction& info, IRContext& ctx) {
 
 }
 
-static void ldr(Instruction &info) {
+static void ldr(Instruction& info, IRContext& ctx) {
     uint8_t DR = (info.raw >> 9) & 0x7;
     // uint8_t PCOffset = info.raw & 0x1FF;
 
     // std::cout << "LDR DR: " << (int)DR << "PCOffset: " << (int)PCOffset << std::endl;
 }
 
-static void lea(Instruction &info) {
+static void lea(Instruction& info, IRContext& ctx) {
     uint8_t DR = (info.raw >> 9) & 0x7;
     uint8_t PCOffset = info.raw & 0x1FF;
 
     std::cout << std::format("LEA R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
-static void not_(Instruction &info) {
+static void not_(Instruction& info, IRContext& ctx) {
 
 }
 
-static void ret(Instruction &info) {
+static void ret(Instruction& info, IRContext& ctx) {
 
 }
 
-static void st(Instruction &info) {
+static void st(Instruction& info, IRContext& ctx) {
 
 }
 
-static void sti(Instruction &info) {
+static void sti(Instruction& info, IRContext& ctx) {
     uint8_t SR = (info.raw >> 9) & 0x7;
     uint8_t PCOffset = info.raw & 0x1FF;
 
     std::cout << std::format("STI R{} 0x{:X}", SR, PCOffset) << std::endl;
 }
 
-static void str(Instruction &info) {
+static void str(Instruction& info, IRContext& ctx) {
 
 }
 
-static void trap(Instruction &info) {
+static void trap(Instruction& info, IRContext& ctx) {
     uint8_t TrapVect8 = info.raw & 0xFF;
 
     std::cout << std::format("TRAP 0x{:X}", TrapVect8) << std::endl;
