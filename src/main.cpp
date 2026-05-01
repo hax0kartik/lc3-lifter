@@ -1,4 +1,5 @@
 #include <iostream>
+#include "rom.hh"
 #include "ir.hh"
 #include "disass.hh"
 
@@ -8,11 +9,16 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    lc3::RomFile file {std::string(argv[1])};
+    file.ReadFile();
+
     lc3::IRContext ctx;
-    ctx.Initialize();
+    ctx.Initialize(file.program, file.loadAddr);
 
     lc3::Disassembler ds {};
-    ds.run(std::string(argv[1]), ctx);
+    ds.run(file, ctx);
+
+    ctx.mod.dump();
 
     return 0;
 }

@@ -5,93 +5,99 @@
 
 namespace lc3 {
 
-struct Instruction {
-    uint16_t raw;
-};
+using instruction_t = void(*)(uint16_t raw, uint16_t address, IRContext&);
 
-using instruction_t = void(*)(Instruction&, IRContext&);
-
-static void add(Instruction& info, IRContext& ctx) {
+static void add(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void and_(Instruction& info, IRContext& ctx) {
+static void and_(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void jsr(Instruction& info, IRContext& ctx) {
-    if ((info.raw >> 11) & 1) {
+static void jsr(uint16_t raw, uint16_t address, IRContext& ctx) {
+    if ((raw >> 11) & 1) {
         /* JSR */
-        uint16_t PCOffset = info.raw & 0x7FF;
+        uint16_t PCOffset = raw & 0x7FF;
         std::cout << std::format("JSR 0x{:X}", PCOffset) << std::endl;
     } else {
         /* JSRR */
-        uint8_t BaseR = (info.raw >> 6) & 0x7;
+        uint8_t BaseR = (raw >> 6) & 0x7;
         std::cout << std::format("JSRR 0x{:X}", BaseR) << std::endl;
     }
 }
 
-static void jmp(Instruction& info, IRContext& ctx) {
+static void jmp(uint16_t raw, uint16_t address, IRContext& ctx) {
     
 }
 
-static void br(Instruction& info, IRContext& ctx) {
-    uint8_t flag = (info.raw >> 9) & 0x7;
-    uint8_t PCOffset = info.raw & 0x1FF;
+static void br(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t flag = (raw >> 9) & 0x7;
+    uint8_t PCOffset = raw & 0x1FF;
 
     std::cout << std::format("BR{} 0x{:X}", flag, PCOffset) << std::endl;
 }
 
-static void ld(Instruction& info, IRContext& ctx) {
-    uint8_t DR = (info.raw >> 9) & 0x7;
-    uint8_t PCOffset = info.raw & 0x1FF;
+static void ld(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t DR = (raw >> 9) & 0x7;
+    uint8_t PCOffset = raw & 0x1FF;
 
     std::cout << std::format("LD R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
-static void ldi(Instruction& info, IRContext& ctx) {
+static void ldi(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void ldr(Instruction& info, IRContext& ctx) {
-    uint8_t DR = (info.raw >> 9) & 0x7;
-    // uint8_t PCOffset = info.raw & 0x1FF;
+static void ldr(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t DR = (raw >> 9) & 0x7;
+    // uint8_t PCOffset = raw & 0x1FF;
 
     // std::cout << "LDR DR: " << (int)DR << "PCOffset: " << (int)PCOffset << std::endl;
 }
 
-static void lea(Instruction& info, IRContext& ctx) {
-    uint8_t DR = (info.raw >> 9) & 0x7;
-    uint8_t PCOffset = info.raw & 0x1FF;
+static void lea(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t DR = (raw >> 9) & 0x7;
+    uint8_t PCOffset = raw & 0x1FF;
+
+    uint16_t FinalOffset = address + PCOffset;
+
+    auto& builder = ctx.builder;
+    auto reg = ctx.mod.getNamedGlobal(std::format("R{}", DR));
+    auto memory = ctx.mod.getNamedGlobal("memory");
+
+    auto offset = builder.CreateInBoundsGEP(memory->getValueType(), memory, \
+        {builder.getInt16(0), builder.getInt16(FinalOffset)});
+    builder.CreateStore(offset, reg);
 
     std::cout << std::format("LEA R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
-static void not_(Instruction& info, IRContext& ctx) {
+static void not_(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void ret(Instruction& info, IRContext& ctx) {
+static void ret(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void st(Instruction& info, IRContext& ctx) {
+static void st(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void sti(Instruction& info, IRContext& ctx) {
-    uint8_t SR = (info.raw >> 9) & 0x7;
-    uint8_t PCOffset = info.raw & 0x1FF;
+static void sti(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t SR = (raw >> 9) & 0x7;
+    uint8_t PCOffset = raw & 0x1FF;
 
     std::cout << std::format("STI R{} 0x{:X}", SR, PCOffset) << std::endl;
 }
 
-static void str(Instruction& info, IRContext& ctx) {
+static void str(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
-static void trap(Instruction& info, IRContext& ctx) {
-    uint8_t TrapVect8 = info.raw & 0xFF;
+static void trap(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t TrapVect8 = raw & 0xFF;
 
     std::cout << std::format("TRAP 0x{:X}", TrapVect8) << std::endl;
 }
