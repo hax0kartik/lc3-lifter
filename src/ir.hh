@@ -14,7 +14,15 @@ namespace lc3 {
 struct IRContext {
     LLVMContext lctx;
     IRBuilder<NoFolder> builder {lctx};
-    Module mod {"IR", lctx};
+    Module *mod;
+
+    void InsertExternalFuncs() {
+        // Puts wrapper
+        {
+            auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getPtrTy(), builder.getInt16Ty()}, false);
+            mod->getOrInsertFunction("_fputws", ftype);
+        }
+    }
 
     void Initialize(std::span<uint8_t> program, const uint16_t addr) {
         // First create function
@@ -30,7 +38,7 @@ struct IRContext {
         // Now setup the regs
         for (int i = 0; i < 8; i++) {
             auto reg = std::format("R{}", i);
-            auto *global = new GlobalVariable(mod, i16Type, false, \
+            auto *global = new GlobalVariable(*mod, i16Type, false, \
                 GlobalValue::InternalLinkage, nullptr, reg);
 
             // Initial value should be 0
@@ -40,7 +48,7 @@ struct IRContext {
         // Now setup the memory
         // Memory - 2^16, 16 bit addressable
         auto *arrTy = ArrayType::get(i16Type, 65535);
-        auto *global = new GlobalVariable(mod, arrTy, false, \
+        auto *global = new GlobalVariable(*mod, arrTy, false, \
                 GlobalValue::InternalLinkage, nullptr, "memory");
 
         std::vector<Constant*> mem(65535, ConstantInt::get(i16Type, 0));

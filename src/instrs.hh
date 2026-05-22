@@ -63,12 +63,8 @@ static void lea(uint16_t raw, uint16_t address, IRContext& ctx) {
     uint16_t FinalOffset = address + PCOffset;
 
     auto& builder = ctx.builder;
-    auto reg = ctx.mod.getNamedGlobal(std::format("R{}", DR));
-    auto memory = ctx.mod.getNamedGlobal("memory");
-
-    auto offset = builder.CreateInBoundsGEP(memory->getValueType(), memory, \
-        {builder.getInt16(0), builder.getInt16(FinalOffset)});
-    builder.CreateStore(offset, reg);
+    auto reg = ctx.mod->getNamedGlobal(std::format("R{}", DR));
+    builder.CreateAlignedStore(ConstantInt::get(builder.getInt16Ty(), FinalOffset), reg, Align(1));
 
     std::cout << std::format("LEA R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
@@ -98,6 +94,29 @@ static void str(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 static void trap(uint16_t raw, uint16_t address, IRContext& ctx) {
     uint8_t TrapVect8 = raw & 0xFF;
+
+    switch (TrapVect8) {
+        case 0x22: { // PUTS
+            // Use GEP to call external function
+            auto R0 = ctx.mod->getNamedGlobal("R0");
+            auto memory = ctx.mod->getNamedGlobal("memory");
+
+            auto load = ctx.builder.CreateAlignedLoad(R0->getValueType(), R0, Align(1));
+            auto ptr = ctx.builder.CreateGEP(memory->getValueType(),
+                memory, {ConstantInt::get(ctx.builder.getInt32Ty(), 0), load});
+
+            auto func = ctx.mod->getFunction("_fputws");
+            auto value = ConstantInt::get(ctx.builder.getInt16Ty(), 1); // STDOUT
+
+            ctx.builder.CreateCall(func, {ptr, value});
+            break;
+        }
+
+        case 0x25: { // HALT
+            ctx.builder.CreateRetVoid();
+            break;
+        }
+    }
 
     std::cout << std::format("TRAP 0x{:X}", TrapVect8) << std::endl;
 }
