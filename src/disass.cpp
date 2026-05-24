@@ -14,7 +14,7 @@ int Disassembler::run(const RomFile &rom, IRContext& ctx) {
         auto f = INSMAP.find(opcode);
         if (f != INSMAP.end()) {
             // + 1 is needed here, because lc3 uses incremented pc
-            f->second(raw, rom.loadAddr + i + 1, ctx);
+            f->second(raw, rom.loadAddr + (i / 2) + 1, ctx);
         } else {
             std::cout << std::hex << std::setfill('0') << std::setw(4) << (int)raw << std::endl;
         }

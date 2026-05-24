@@ -17,10 +17,16 @@ struct IRContext {
     Module *mod;
 
     void InsertExternalFuncs() {
-        // Puts wrapper
+        // Puts puts wrapper
         {
             auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getPtrTy(), builder.getInt16Ty()}, false);
             mod->getOrInsertFunction("_fputws", ftype);
+        }
+
+        // Put out wrapper
+        {
+            auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getInt16Ty()}, false);
+            mod->getOrInsertFunction("_out", ftype);
         }
     }
 
