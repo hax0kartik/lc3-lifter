@@ -16,6 +16,9 @@ struct IRContext {
     IRBuilder<NoFolder> builder {lctx};
     Module *mod;
 
+    // Optimization trick for n, p, z 
+    GlobalValue *lastReg;
+
     void InsertExternalFuncs() {
         // Puts puts wrapper
         {
@@ -50,6 +53,17 @@ struct IRContext {
             // Initial value should be 0
             global->setInitializer(ConstantInt::get(i16Type, 0));
         }
+
+        auto setup_flag = [&](const auto& name) -> void {
+            auto *f = new GlobalVariable(*mod, i16Type, false, \
+                GlobalValue::InternalLinkage, nullptr, name);
+            f->setInitializer(ConstantInt::get(i16Type, 0));
+        };
+
+        // Setup N, Z, P condition flags as well
+        setup_flag("N");
+        setup_flag("Z");
+        setup_flag("P");
 
         // Now setup the memory
         // Memory - 2^16, 16 bit addressable

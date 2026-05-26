@@ -17,7 +17,8 @@ static void add(uint16_t raw, uint16_t address, IRContext& ctx) {
 
     auto Sreg1 = ctx.mod->getNamedGlobal(std::format("R{}", SR1));
     auto Dreg = ctx.mod->getNamedGlobal(std::format("R{}", DR));
-    
+    ctx.lastReg = Dreg;
+
     if ((raw >> 5) & 0x1) {
         uint8_t imm5 = raw & 0x1F;
         uint16_t num = (imm5 ^ 0x10) - 0x10; // sign extend to 16 bits
@@ -38,8 +39,36 @@ static void add(uint16_t raw, uint16_t address, IRContext& ctx) {
     }
 }
 
+// DR <- SR1 & SExt(imm5)
+// DR <- SR1 & SR2
 static void and_(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t DR = (raw >> 9) & 0x7;
+    uint8_t SR1 = (raw >> 6) & 0x7;
 
+    auto& builder = ctx.builder;
+
+    auto Sreg1 = ctx.mod->getNamedGlobal(std::format("R{}", SR1));
+    auto Dreg = ctx.mod->getNamedGlobal(std::format("R{}", DR));
+    ctx.lastReg = Dreg;
+
+    if ((raw >> 5) & 0x1) {
+        uint8_t imm5 = raw & 0x1F;
+        int16_t num = (imm5 ^ 0x10) - 0x10; // sign extend to 16 bits
+
+        auto val1 = builder.CreateAlignedLoad(Sreg1->getValueType(), Sreg1, Align(1));
+        auto v = builder.CreateAnd(val1, ConstantInt::get(ctx.builder.getInt16Ty(), num));
+
+        builder.CreateAlignedStore(v, Dreg, Align(1));
+    } else {
+        uint8_t SR2 = raw & 0x7;
+        auto Sreg2 = ctx.mod->getNamedGlobal(std::format("R{}", SR2));
+
+        auto val1 = builder.CreateAlignedLoad(Sreg1->getValueType(), Sreg1, Align(1));
+        auto val2 = builder.CreateAlignedLoad(Sreg2->getValueType(), Sreg2, Align(1));
+        auto v = builder.CreateAnd(val1, val2);
+
+        builder.CreateAlignedStore(v, Dreg, Align(1));
+    }
 }
 
 static void jsr(uint16_t raw, uint16_t address, IRContext& ctx) {
@@ -88,11 +117,30 @@ static void ldi(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 }
 
+
+// LDR <- MEM[BaseR + SExt(offset)]
 static void ldr(uint16_t raw, uint16_t address, IRContext& ctx) {
     uint8_t DR = (raw >> 9) & 0x7;
-    // uint8_t PCOffset = raw & 0x1FF;
+    uint8_t BaseR = (raw >> 6) & 0x7;
+    int8_t offset = (((raw & 0x3F) ^ 0x20) - 0x20);
 
-    // std::cout << "LDR DR: " << (int)DR << "PCOffset: " << (int)PCOffset << std::endl;
+    auto& builder = ctx.builder;
+
+    auto Dreg = ctx.mod->getNamedGlobal(std::format("R{}", DR));
+    ctx.lastReg = Dreg;
+
+    auto Breg = ctx.mod->getNamedGlobal(std::format("R{}", BaseR));
+    auto memory = ctx.mod->getNamedGlobal("memory");
+
+    auto val = builder.CreateAlignedLoad(Breg->getValueType(), Breg, Align(1));
+    auto v = builder.CreateAdd(val, ConstantInt::get(builder.getInt16Ty(), offset));
+
+    auto ptr = builder.CreateGEP(memory->getValueType(),
+            memory, {ConstantInt::get(builder.getInt32Ty(), 0), v});
+    auto fval = builder.CreateAlignedLoad(Dreg->getValueType(), ptr, Align(1));
+    builder.CreateAlignedStore(fval, Dreg, Align(1));
+
+    std::cout << "LDR DR: " << (int)DR << "Offset: " << (int)offset << "BaseR: " << BaseR << std::endl;
 }
 
 static void lea(uint16_t raw, uint16_t address, IRContext& ctx) {
@@ -108,12 +156,45 @@ static void lea(uint16_t raw, uint16_t address, IRContext& ctx) {
     std::cout << std::format("LEA R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
+// DR <- NOT(SR)
 static void not_(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t DR = (raw >> 9) & 0x7;
+    uint8_t SR = (raw >> 6) & 0x7;
 
+    auto& builder = ctx.builder;
+    auto Dreg = ctx.mod->getNamedGlobal(std::format("R{}", DR));
+    auto Sreg = ctx.mod->getNamedGlobal(std::format("R{}", SR));
+
+    ctx.lastReg = Dreg;
+
+    auto val = builder.CreateAlignedLoad(Sreg->getValueType(), Sreg, Align(1));
+    auto fval = builder.CreateNot(val);
+
+    builder.CreateAlignedStore(fval, Dreg, Align(1));
+
+    std::cout << std::format("NOT D: R{} S: R{}", DR, SR) << std::endl;
 }
 
+// MEM[PC + SExt(PCOffset9)] = SR
 static void st(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t SR = (raw >> 9) & 0x7;
+    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
 
+    uint16_t FinalOffset = address + SExtOffset;
+
+    auto& builder = ctx.builder;
+    auto Sreg = ctx.mod->getNamedGlobal(std::format("R{}", SR));
+    auto memory = ctx.mod->getNamedGlobal("memory");
+
+    auto ptr = builder.CreateGEP(memory->getValueType(),
+            memory, {ConstantInt::get(builder.getInt32Ty(), 0), ConstantInt::get(builder.getInt16Ty(), FinalOffset)});
+
+    auto val = builder.CreateAlignedLoad(Sreg->getValueType(), Sreg, Align(1));
+    
+    builder.CreateAlignedStore(val, ptr, Align(1));
+
+    std::cout << std::format("ST R{} 0x{:X}", SR, PCOffset) << std::endl;
 }
 
 static void sti(uint16_t raw, uint16_t address, IRContext& ctx) {

@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
     lc3::Disassembler ds {};
     ds.run(file, ctx);
 
-    //ctx.mod->dump();
+    ctx.mod->dump();
 
     auto &JD = JIT->getMainJITDylib();
 
