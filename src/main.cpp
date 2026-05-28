@@ -8,7 +8,7 @@
 #include "ir.hh"
 #include "disass.hh"
 
-extern "C" void _fputws(char16_t *ptr, uint16_t a) {
+extern "C" void _fputws(char16_t *ptr) {
     // Can you believe we do not have a direct function to print
     // char_16t in 2026? Me neither. 
     std::string out;
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
     lc3::Disassembler ds {};
     ds.run(file, ctx);
 
-    ctx.mod->dump();
+    //ctx.mod->dump();
 
     auto &JD = JIT->getMainJITDylib();
 
@@ -106,6 +106,16 @@ int main(int argc, char **argv) {
 
     auto fn = (void (*)()) Sym->getValue();
     fn();
+
+    auto sym = JIT->lookup("R0");
+    if (!sym) {
+        llvm::errs() << "lookup failed\n";
+        llvm::logAllUnhandledErrors(sym.takeError(), llvm::errs(), "");
+        return 0;
+    }
+
+    auto *R0 = (uint16_t *)sym->getValue();
+    llvm::errs() << "R0 = " << *R0 << "\n";
 
     return 0;
 }

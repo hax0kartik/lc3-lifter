@@ -11,18 +11,27 @@ using namespace llvm;
 
 namespace lc3 {
 
+struct BB {
+    uint16_t address;
+    uint16_t fileOffset;
+    BasicBlock *block = nullptr;
+};
+
 struct IRContext {
     LLVMContext lctx;
     IRBuilder<NoFolder> builder {lctx};
-    Module *mod;
+    Module *mod = nullptr;
+    bool done = false;
+
+    std::vector<BB> blockList;
 
     // Optimization trick for n, p, z 
-    GlobalValue *lastReg;
+    GlobalValue *lastReg = nullptr;
 
     void InsertExternalFuncs() {
         // Puts puts wrapper
         {
-            auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getPtrTy(), builder.getInt16Ty()}, false);
+            auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getPtrTy()}, false);
             mod->getOrInsertFunction("_fputws", ftype);
         }
 
@@ -39,7 +48,7 @@ struct IRContext {
         auto function = Function::Create(ftype, Function::ExternalLinkage, "main", mod);
 
         // Next create the basic startpoint
-        auto entry = BasicBlock::Create(lctx, "entry", function);
+        auto *entry = BasicBlock::Create(lctx, "entry", function);
         builder.SetInsertPoint(entry);
 
         auto *i16Type = builder.getInt16Ty();
@@ -48,7 +57,7 @@ struct IRContext {
         for (int i = 0; i < 8; i++) {
             auto reg = std::format("R{}", i);
             auto *global = new GlobalVariable(*mod, i16Type, false, \
-                GlobalValue::InternalLinkage, nullptr, reg);
+                GlobalValue::ExternalLinkage, nullptr, reg);
 
             // Initial value should be 0
             global->setInitializer(ConstantInt::get(i16Type, 0));
@@ -73,13 +82,16 @@ struct IRContext {
 
         std::vector<Constant*> mem(65535, ConstantInt::get(i16Type, 0));
 
-        for (int i = 0, j = 0; j < program.size() - 1; j += 2, i++) {
+        for (size_t i = 0, j = 0; j < program.size() - 1; j += 2, i++) {
             uint16_t by = program.data()[j] << 8 | program.data()[j + 1];
             mem[addr + i] = ConstantInt::get(i16Type, by);
         }
 
         auto *init = ConstantArray::get(arrTy, mem);
         global->setInitializer(init);
+
+        // push the block to exploration queue
+        blockList.push_back({addr, 0, entry});
     }
 };
 

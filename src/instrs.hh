@@ -10,6 +10,8 @@ using instruction_t = void(*)(uint16_t raw, uint16_t address, IRContext&);
 // DR <- SR1 + SExt(imm5)
 // DR <- SR1 + SR2
 static void add(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+
     uint8_t DR = (raw >> 9) & 0x7;
     uint8_t SR1 = (raw >> 6) & 0x7;
 
@@ -42,6 +44,8 @@ static void add(uint16_t raw, uint16_t address, IRContext& ctx) {
 // DR <- SR1 & SExt(imm5)
 // DR <- SR1 & SR2
 static void and_(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+
     uint8_t DR = (raw >> 9) & 0x7;
     uint8_t SR1 = (raw >> 6) & 0x7;
 
@@ -72,6 +76,9 @@ static void and_(uint16_t raw, uint16_t address, IRContext& ctx) {
 }
 
 static void jsr(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+    (void)ctx;
+
     if ((raw >> 11) & 1) {
         /* JSR */
         uint16_t PCOffset = raw & 0x7FF;
@@ -84,10 +91,15 @@ static void jsr(uint16_t raw, uint16_t address, IRContext& ctx) {
 }
 
 static void jmp(uint16_t raw, uint16_t address, IRContext& ctx) {
-    
+    (void)raw;
+    (void)address;
+    (void)ctx;
 }
 
 static void br(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+    (void)ctx;
+
     uint8_t flag = (raw >> 9) & 0x7;
     uint8_t PCOffset = raw & 0x1FF;
 
@@ -113,13 +125,37 @@ static void ld(uint16_t raw, uint16_t address, IRContext& ctx) {
     std::cout << std::format("LD R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
+// DR <- MEM[MEM[PC + SExt(Offset9)]]
 static void ldi(uint16_t raw, uint16_t address, IRContext& ctx) {
+    uint8_t DR = (raw >> 9) & 0x7;
+    uint8_t PCOffset = raw & 0x1FF;
 
+    uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
+
+    uint16_t FinalOffset = address + SExtOffset;
+
+    auto& builder = ctx.builder;
+    auto Dreg = ctx.mod->getNamedGlobal(std::format("R{}", DR));
+    auto memory = ctx.mod->getNamedGlobal("memory");
+
+    auto ptr = builder.CreateGEP(memory->getValueType(),
+        memory, {ConstantInt::get(builder.getInt32Ty(), 0), ConstantInt::get(builder.getInt32Ty(), FinalOffset)});
+    
+    auto val = builder.CreateAlignedLoad(Dreg->getValueType(), ptr, Align(1));
+
+    auto ptr2 = builder.CreateGEP(memory->getValueType(),
+        memory, {ConstantInt::get(builder.getInt32Ty(), 0), val});
+    
+    auto val2 = builder.CreateAlignedLoad(Dreg->getValueType(), ptr2, Align(1));
+    builder.CreateAlignedStore(val2, Dreg, Align(1));
+
+    std::cout << std::format("LDR R{} 0x{:X}", DR, PCOffset) << std::endl;
 }
 
-
-// LDR <- MEM[BaseR + SExt(offset)]
+// DR <- MEM[BaseR + SExt(offset)]
 static void ldr(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+
     uint8_t DR = (raw >> 9) & 0x7;
     uint8_t BaseR = (raw >> 6) & 0x7;
     int8_t offset = (((raw & 0x3F) ^ 0x20) - 0x20);
@@ -158,6 +194,8 @@ static void lea(uint16_t raw, uint16_t address, IRContext& ctx) {
 
 // DR <- NOT(SR)
 static void not_(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+
     uint8_t DR = (raw >> 9) & 0x7;
     uint8_t SR = (raw >> 6) & 0x7;
 
@@ -197,18 +235,61 @@ static void st(uint16_t raw, uint16_t address, IRContext& ctx) {
     std::cout << std::format("ST R{} 0x{:X}", SR, PCOffset) << std::endl;
 }
 
+// MEM[MEM[PC + SExt(PCOffset9)]] = SR
 static void sti(uint16_t raw, uint16_t address, IRContext& ctx) {
     uint8_t SR = (raw >> 9) & 0x7;
     uint8_t PCOffset = raw & 0x1FF;
+    uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
+
+    uint16_t FinalOffset = address + SExtOffset;
+
+    auto& builder = ctx.builder;
+    auto Sreg = ctx.mod->getNamedGlobal(std::format("R{}", SR));
+    auto memory = ctx.mod->getNamedGlobal("memory");
+
+    auto ptr = builder.CreateGEP(memory->getValueType(),
+            memory, {ConstantInt::get(builder.getInt32Ty(), 0), ConstantInt::get(builder.getInt16Ty(), FinalOffset)});
+    
+    auto val = builder.CreateAlignedLoad(Sreg->getValueType(), ptr, Align(1));
+    
+    auto ptr2 = builder.CreateGEP(memory->getValueType(),
+            memory, {ConstantInt::get(builder.getInt32Ty(), 0), val});
+
+    auto val2 = builder.CreateAlignedLoad(Sreg->getValueType(), Sreg, Align(1));
+    
+    builder.CreateAlignedStore(val2, ptr2, Align(1));
 
     std::cout << std::format("STI R{} 0x{:X}", SR, PCOffset) << std::endl;
 }
 
+// MEM[BaseR + SExt(offset6)] = SR
 static void str(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
 
+    uint8_t SR = (raw >> 9) & 0x7;
+    uint8_t BaseR = (raw >> 6) & 0x7;
+    int8_t offset6 = (((raw & 0x3F) ^ 0x20) - 0x20);
+
+    auto& builder = ctx.builder;
+    auto Sreg = ctx.mod->getNamedGlobal(std::format("R{}", SR));
+    auto Breg = ctx.mod->getNamedGlobal(std::format("R{}", BaseR));
+    auto memory = ctx.mod->getNamedGlobal("memory");
+
+    auto val = builder.CreateAlignedLoad(Breg->getValueType(), Breg, Align(1));
+    auto v = builder.CreateAdd(val, ConstantInt::get(builder.getInt16Ty(), offset6));
+    
+    auto ptr2 = builder.CreateGEP(memory->getValueType(),
+            memory, {ConstantInt::get(builder.getInt32Ty(), 0), v});
+
+    auto val2 = builder.CreateAlignedLoad(Sreg->getValueType(), Sreg, Align(1));
+    builder.CreateAlignedStore(val2, ptr2, Align(1));
+
+    std::cout << std::format("STR R{} BaseR{} 0x{:X}", SR, BaseR, offset6) << std::endl;
 }
 
 static void trap(uint16_t raw, uint16_t address, IRContext& ctx) {
+    (void)address;
+
     uint8_t TrapVect8 = raw & 0xFF;
 
     switch (TrapVect8) {
@@ -231,14 +312,13 @@ static void trap(uint16_t raw, uint16_t address, IRContext& ctx) {
                 memory, {ConstantInt::get(ctx.builder.getInt32Ty(), 0), load});
 
             auto func = ctx.mod->getFunction("_fputws");
-            auto value = ConstantInt::get(ctx.builder.getInt16Ty(), 1); // STDOUT
-
-            ctx.builder.CreateCall(func, {ptr, value});
+            ctx.builder.CreateCall(func, {ptr});
             break;
         }
 
         case 0x25: { // HALT
             ctx.builder.CreateRetVoid();
+            ctx.done = true;
             break;
         }
     }
