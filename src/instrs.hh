@@ -102,10 +102,10 @@ static void jmp(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ct
 
 static void br(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ctx) {
     uint8_t flag = (raw >> 9) & 0x7; // N Z P
-    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t PCOffset = raw & 0x1FF;
 
-    uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
-    uint16_t FinalOffset = address + SExtOffset;
+    int16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
+    int16_t FinalOffset = address + SExtOffset;
 
     auto& builder = ctx.builder;
 
@@ -181,7 +181,7 @@ static void ld(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ctx
     (void)fileOffset;
 
     uint8_t DR = (raw >> 9) & 0x7;
-    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t PCOffset = raw & 0x1FF;
 
     uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
     uint16_t FinalOffset = address + SExtOffset;
@@ -205,7 +205,7 @@ static void ldi(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ct
     (void)fileOffset;
 
     uint8_t DR = (raw >> 9) & 0x7;
-    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t PCOffset = raw & 0x1FF;
 
     uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
 
@@ -262,7 +262,7 @@ static void lea(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ct
     (void)fileOffset;
 
     uint8_t DR = (raw >> 9) & 0x7;
-    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t PCOffset = raw & 0x1FF;
 
     uint16_t FinalOffset = address + PCOffset;
 
@@ -300,7 +300,7 @@ static void st(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ctx
     (void)fileOffset;
 
     uint8_t SR = (raw >> 9) & 0x7;
-    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t PCOffset = raw & 0x1FF;
     uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
 
     uint16_t FinalOffset = address + SExtOffset;
@@ -324,7 +324,7 @@ static void sti(uint16_t raw, size_t fileOffset, uint16_t address, IRContext& ct
     (void)fileOffset;
 
     uint8_t SR = (raw >> 9) & 0x7;
-    uint8_t PCOffset = raw & 0x1FF;
+    uint16_t PCOffset = raw & 0x1FF;
     uint16_t SExtOffset = (PCOffset ^ 0x100) - 0x100;
 
     uint16_t FinalOffset = address + SExtOffset;
