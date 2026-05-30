@@ -4,6 +4,8 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <iostream>
 #include <format>
+#include <unistd.h>
+#include <termios.h>
 #include "rom.hh"
 #include "ir.hh"
 #include "disass.hh"
@@ -26,6 +28,29 @@ extern "C" void _out(char16_t val) {
     out.push_back(val);
 
     std::cout << out << std::endl;
+}
+
+int getch() {
+    struct termios oldt, newt;
+    int ch;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+
+    return ch;
+}
+
+extern "C" char16_t _getc() {
+    char c = getch();
+    return (char16_t)c;
 }
 
 int main(int argc, char **argv) {
@@ -64,7 +89,7 @@ int main(int argc, char **argv) {
     lc3::Disassembler ds {};
     ds.run(file, ctx);
 
-    //ctx.mod->dump();
+    ctx.mod->dump();
 
     auto &JD = JIT->getMainJITDylib();
 
@@ -78,6 +103,11 @@ int main(int argc, char **argv) {
     map[JIT->mangleAndIntern("_out")] =
         llvm::orc::ExecutorSymbolDef(
             llvm::orc::ExecutorAddr((uint64_t)&_out),
+            JITSymbolFlags::Exported);
+
+    map[JIT->mangleAndIntern("_getc")] =
+        llvm::orc::ExecutorSymbolDef(
+            llvm::orc::ExecutorAddr((uint64_t)&_getc),
             JITSymbolFlags::Exported);
 
     JD.define(llvm::orc::absoluteSymbols(std::move(map)));

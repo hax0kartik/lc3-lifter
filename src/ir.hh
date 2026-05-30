@@ -1,5 +1,7 @@
 #pragma once
 #include <format>
+#include <vector>
+#include <unordered_map>
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
@@ -24,21 +26,28 @@ struct IRContext {
     bool done = false;
 
     std::vector<BB> blockList;
+    std::unordered_map<uint16_t, BasicBlock *> blocks;
 
     // Optimization trick for n, p, z 
     GlobalValue *lastReg = nullptr;
 
     void InsertExternalFuncs() {
-        // Puts puts wrapper
+        // puts wrapper
         {
             auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getPtrTy()}, false);
             mod->getOrInsertFunction("_fputws", ftype);
         }
 
-        // Put out wrapper
+        // out wrapper
         {
             auto ftype = FunctionType::get(builder.getVoidTy(), {builder.getInt16Ty()}, false);
             mod->getOrInsertFunction("_out", ftype);
+        }
+
+        // getc wrapper
+        {
+            auto ftype = FunctionType::get(builder.getInt16Ty(), {}, false);
+            mod->getOrInsertFunction("_getc", ftype);
         }
     }
 
@@ -49,7 +58,6 @@ struct IRContext {
 
         // Next create the basic startpoint
         auto *entry = BasicBlock::Create(lctx, "entry", function);
-        builder.SetInsertPoint(entry);
 
         auto *i16Type = builder.getInt16Ty();
 
@@ -62,17 +70,6 @@ struct IRContext {
             // Initial value should be 0
             global->setInitializer(ConstantInt::get(i16Type, 0));
         }
-
-        auto setup_flag = [&](const auto& name) -> void {
-            auto *f = new GlobalVariable(*mod, i16Type, false, \
-                GlobalValue::InternalLinkage, nullptr, name);
-            f->setInitializer(ConstantInt::get(i16Type, 0));
-        };
-
-        // Setup N, Z, P condition flags as well
-        setup_flag("N");
-        setup_flag("Z");
-        setup_flag("P");
 
         // Now setup the memory
         // Memory - 2^16, 16 bit addressable
@@ -92,6 +89,7 @@ struct IRContext {
 
         // push the block to exploration queue
         blockList.push_back({addr, 0, entry});
+        blocks[addr] = entry;
     }
 };
 
